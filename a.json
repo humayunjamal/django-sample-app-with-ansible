@@ -1,0 +1,321 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "CloudFormation Django Infrastructure",
+  "Parameters": {
+    "IsStackActive": {
+      "Default": "false",
+      "ConstraintDescription": "",
+      "Type": "String",
+      "Description": "Set this to True if the stack is Active"
+    },
+    "Vpc": {
+      "Default": "vpc-8601a7ff",
+      "ConstraintDescription": "",
+      "Type": "String",
+      "Description": "Vpc ID"
+    },
+    "PublicSubnet1": {
+      "Default": "subnet-3948485c",
+      "ConstraintDescription": "",
+      "Type": "String",
+      "Description": "Subnet Id for PublicSubnet1"
+    },
+    "PublicSubnet0": {
+      "Default": "subnet-4f1d3273",
+      "ConstraintDescription": "",
+      "Type": "String",
+      "Description": "Subnet Id for PublicSubnet0"
+    },
+    "BaseAMI": {
+      "Default": "ami-0b542c1d",
+      "ConstraintDescription": "must be a valid ami.",
+      "Type": "String",
+      "Description": "AMI id for ubuntu"
+    }
+  },
+  "Mappings": {
+    "Regions": {
+      "DRRegion": {
+        "Value": "us-east-1"
+      },
+      "PrimaryRegion": {
+        "Value": "ap-southeast-1"
+      }
+    },
+    "Buckets": {
+      "InfraPrimaryBucket": {
+        "Value": "test-environments"
+      },
+      "InfraDRBucket": {
+        "Value": "test-environments"
+      }
+    }
+  },
+  "Resources": {
+
+    "DjangoSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "SecurityGroupIngress": [
+          {
+            "ToPort": "22",
+            "IpProtocol": "tcp",
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": "22"
+          },
+         {
+            "ToPort": "80",
+            "IpProtocol": "tcp",
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": "80"
+          }
+        ],
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "GroupDescription": "Security Group",
+        "Tags": [
+          {
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "DjangoSG"
+                ]
+              ]
+            },
+            "Key": "Name"
+          }
+        ]
+      }
+    },
+    "DjangoSGIngress" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : {
+        "GroupId" : { "Ref" : "DjangoSG" },
+        "IpProtocol" : "tcp",
+        "ToPort" : "65535",
+        "FromPort" : "0",
+        "SourceSecurityGroupId" : { "Ref" : "DjangoSG" }
+      },
+      "DependsOn" : "DjangoSG"
+    },
+
+    "DjangoLc": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -vx\n",
+                "exec > >(tee /var/log/userdata.log)\n",
+                "exec 2>&1\n",
+                "apt-get update\n",
+                "apt-get -y install python-pip\n",
+                "apt-get -y install libffi-dev\n",
+                "apt-get -y install build-essential autoconf libtool pkg-config python-opengl python-imaging python-pyrex python-pyside.qtopengl idle-python2.7 qt4-dev-tools qt4-designer libqtgui4 libqtcore4 libqt4-xml libqt4-test libqt4-script libqt4-network libqt4-dbus python-qt4 python-qt4-gl libgle3 python-dev libssl-dev\n",
+                "pip install ansible\n",
+                "apt-get -y install git\n",
+                "cd /opt\n",
+                "git clone https://github.com/humayunjamal/fetch.git\n",
+                "cd fetch/ansible\n",
+                "ansible-playbook provision.yml\n",
+                "ansible-playbook deploy.yml\n"
+
+
+                              ]
+            ]
+          }
+        },
+        "ImageId": {
+          "Ref": "BaseAMI"
+        },
+        "KeyName": "test-key",
+        "SecurityGroups": [
+          {
+            "Ref": "DjangoSG"
+          }
+        ],
+        "IamInstanceProfile": { "Ref": "DjangoStagingInstanceProfile" },
+        "InstanceType": "t2.medium",
+        "AssociatePublicIpAddress": true
+      }
+    },
+
+    "DjangoStagingInstanceProfile":  {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [{ "Ref": "DjangoStagingRole"}]
+      }
+    },
+    "DjangoStagingRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": "/",
+        "Policies": [ {
+          "PolicyName": "route53fullelseRO",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [
+
+              {
+                "Action":[
+                  "ec2:Describe*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":["route53:*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":["s3:Get*",
+                  "s3:List*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":["autoscaling:Describe*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":["elasticloadbalancing:Describe*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":["cloudwatch:Describe*",
+                  "cloudwatch:List*",
+                  "cloudwatch:Get*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              },
+              {
+                "Action":[
+                  "iam:Get*",
+                  "iam:List*"
+                ],
+                "Effect":"Allow",
+                "Resource":"*"
+              }
+
+
+
+
+
+            ]
+          }
+        } ]
+      }
+    },
+
+
+    "DjangoASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "MinSize": "1",
+        "Tags": [
+          {
+            "PropagateAtLaunch": "true",
+            "Value": "Django-staging",
+            "Key": "Name"
+          }
+        ],
+        "MaxSize": "1",
+        "LoadBalancerNames" : [ { "Ref" : "DjangoELB" } ],
+        "HealthCheckGracePeriod": "600",
+        "DesiredCapacity": "1",
+        "LaunchConfigurationName": {
+          "Ref": "DjangoLc"
+        },
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "PublicSubnet0"
+          },
+          {
+            "Ref": "PublicSubnet1"
+          }
+        ],
+        "HealthCheckType": "EC2"
+      }
+      
+           },
+           
+           "DjangoELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "DjangoSG"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "PublicSubnet1"
+          },
+          {
+            "Ref": "PublicSubnet0"
+          }
+        ],
+        "CrossZone" : "true",
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        }
+      }
+    }
+      
+      
+      
+    
+
+
+
+
+
+  },
+
+  "Conditions": {
+    "IsActiveStack": {
+      "Fn::Equals": [
+        {
+          "Ref": "IsStackActive"
+        },
+        "True"
+      ]
+    }
+  }
+}
