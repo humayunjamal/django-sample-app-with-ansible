@@ -125,7 +125,8 @@
                 "git clone https://github.com/humayunjamal/fetch.git\n",
                 "cd fetch/ansible\n",
                 "ansible-playbook provision.yml\n",
-                "ansible-playbook deploy.yml\n"
+                "ansible-playbook deploy.yml\n",
+                "cd /opt/fetch/ansible;ansible-playbook provision.yml\n"
 
 
                               ]
