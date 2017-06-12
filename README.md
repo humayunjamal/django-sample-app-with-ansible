@@ -18,6 +18,8 @@ The template will launch an ASG with ELB and security group configured to allow 
 
 The user data of the auto scaling group is configured to download this repo and run the playbook which provision and deploys the hello app 
 
+Tail the /var/log/cloud-init-output.log log file to check the status of a newly created instance application deployment
+
 Step 3) Access the application via created ELB end point on port 80. 
 
 
