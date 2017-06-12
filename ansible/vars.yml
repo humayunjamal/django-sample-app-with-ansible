@@ -63,8 +63,9 @@ system_packages:
   - git
   - nginx
   - gunicorn
-  - postgresql
-  - postgresql-server-dev-all
+#Enable below two lines if you want to use local postgresql server
+#  - postgresql
+#  - postgresql-server-dev-all
   - python-pip
   - python-dev
   - python-psycopg2
