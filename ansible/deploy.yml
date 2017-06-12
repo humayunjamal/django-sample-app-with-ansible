@@ -17,7 +17,7 @@
       - restart gunicorn
 
     - name: copy nginx config
-      template: src={{ playbook_dir }}/files/nginx.j2 dest=/etc/nginx/sites-enabled/{{ project_name }}.conf
+      template: src=nginx.j2 dest=/etc/nginx/sites-enabled/{{ project_name }}.conf
       notify:
       - restart nginx
 
